@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nuwama Format</title>
+    <style>
+        :root {
+            --bg: #0b0f1a;
+            --card: #121828;
+            --muted: #5e6b85;
+            --text: #e9eefb;
+            --accent: #ffd94a;
+            --ok: #39d98a;
+            --warn: #ffb020;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            background: linear-gradient(90deg, #ffcd39 0 120px, #fff 120px 100%);
+            color: var(--text);
+        }
+
+        header {
+            padding: 24px 24px 8px;
+            color: #1b1b1b;
+        }
+
+        header h1 {
+            margin: 0 0 4px;
+            font-size: 20px;
+        }
+
+        header p {
+            margin: 0;
+            color: #333;
+        }
+
+        main {
+            padding: 16px 24px 48px;
+        }
+
+        .app {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: var(--card);
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(5, 8, 20, .25);
+            padding: 20px;
+        }
+
+        .row {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 1fr auto;
+            align-items: end;
+        }
+
+        .uploader {
+            border: 1.5px dashed #2b3754;
+            border-radius: 12px;
+            padding: 16px;
+            background: #0f1526;
+        }
+
+        .uploader.drag {
+            border-color: var(--accent);
+            background: #141b31;
+        }
+
+        .uploader h3 {
+            margin: 0 0 6px;
+            font-size: 15px;
+            color: #dbe4fb;
+        }
+
+        input[type="file"] {
+            display: block;
+            margin-top: 8px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        button,
+        .ghost {
+            border: 0;
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: #161616;
+        }
+
+        button.secondary {
+            background: #1b243a;
+            color: #e6edff;
+        }
+
+        button:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 10px;
+            color: var(--muted);
+        }
+
+        .grid {
+            margin-top: 16px;
+            overflow: auto;
+            border: 1px solid #18223a;
+            border-radius: 10px;
+            background: #0f1526;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #0b1123;
+            color: #dfe7ff;
+            text-align: left;
+            border-bottom: 1px solid #1a2542;
+            padding: 8px;
+        }
+
+        tbody td {
+            border-bottom: 1px dashed #1a2542;
+            padding: 6px 8px;
+            color: #cbd6f6;
+            white-space: nowrap;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+        }
+
+        .pill.warn {
+            background: #3b2b0d;
+            color: #ffe8ac;
+        }
+
+        footer {
+            margin-top: 18px;
+            font-size: 12px;
+            color: #8a97b7;
+        }
+
+        code {
+            background: #0c1224;
+            padding: 2px 6px;
+            border-radius: 6px;
+            color: #fff6bf;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Nuwama Format</h1>
+        <p>Upload your trade CSV/TSV. The conversion logic follows your exact rules below.</p>
+    </header>
+
+    <main>
+        <div class="app">
+            <div class="row">
+                <div class="uploader" id="drop">
+                    <h3>Upload source file</h3>
+                    <div>Expected source headers start with:
+                        <code>Ord No., Exch, Segment, ClientId, EXCH_SEG, Buy/Sell, ...</code>
+                    </div>
+                    <input id="file" type="file" accept=".csv,.tsv,.txt" />
+                    <div class="status" id="status">No file loaded.</div>
+                    <div class="mapping">
+                        Output headers will be:
+                        <code>
+              BROKER CODE, CLIENT CODE, NSE SYMBOL CODE, EXCHANGE, "BUY/SELL (BY-/SL+)",
+              TRADE DATE, Settlement date, Quantity, TRADE PRICE, Turnover,
+              TOTAL BROKERAGE, GST, DEFAULT(2 letters of Instrument),
+              STAMP DUTY, Turnover Charges, SECURITY TRANSACTION TAX AMOUNT,
+              SEBI &amp; CLERING CHARGES, DEFAULT(blank),
+              SECURITY EXPIRY DATE, STRIKE PRICE, CE/PE/XX, SERIES
+            </code>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button class="secondary" id="sample">Load Sample (dev)</button>
+                    <button class="primary" id="convert" disabled>Convert &amp; Download</button>
+                </div>
+            </div>
+
+            <div class="grid" id="preview" hidden>
+                <table>
+                    <thead id="thead"></thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+
+            <footer>
+                <span class="pill warn">Rule-set applied</span> Edit inside <code>transformRow()</code> if you tweak
+                rates.
+            </footer>
+        </div>
+    </main>
+
+    <script>
+        /* ---------- Small utilities ---------- */
+        const byId = id => document.getElementById(id);
+
+        function detectDelimiter(text) {
+            const firstLine = text.split(/\r?\n/).find(line => line.trim().length) || "";
+            const counts = {
+                ",": (firstLine.match(/,/g) || []).length,
+                "\t": (firstLine.match(/\t/g) || []).length,
+                ";": (firstLine.match(/;/g) || []).length,
+            };
+            return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] || ",";
+        }
+
+        // RFC4180-lite split
+        function parseCSV(text, delimiter) {
+            const rows = [];
+            let row = [], value = "", inQuotes = false;
+            const pushVal = () => { row.push(value); value = ""; };
+            const pushRow = () => { rows.push(row); row = []; };
+
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i], next = text[i + 1];
+                if (inQuotes) {
+                    if (c === '"' && next === '"') { value += '"'; i++; }
+                    else if (c === '"') { inQuotes = false; }
+                    else { value += c; }
+                } else {
+                    if (c === '"') inQuotes = true;
+                    else if (c === delimiter) pushVal();
+                    else if (c === '\n') { pushVal(); pushRow(); }
+                    else if (c === '\r') { /* ignore */ }
+                    else value += c;
+                }
+            }
+            if (value.length || row.length) { pushVal(); pushRow(); }
+            while (rows.length && rows[rows.length - 1].every(v => v === "")) rows.pop();
+            return rows;
+        }
+
+        function rowsToCSV(rows, delimiter = ",") {
+            const esc = v => {
+                const s = v == null ? "" : String(v);
+                return /[",\n\r;]|\t/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+            };
+            return rows.map(r => r.map(esc).join(delimiter)).join("\r\n");
+        }
+
+        function download(filename, text) {
+            const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
+        /* ---------- App state ---------- */
+        let sourceHeaders = [];
+        let sourceRows = [];
+
+        const fileInput = byId("file");
+        const statusEl = byId("status");
+        const preview = byId("preview");
+        const thead = byId("thead");
+        const tbody = byId("tbody");
+        const convertBtn = byId("convert");
+        const sampleBtn = byId("sample");
+        const drop = byId("drop");
+
+        /* drag & drop */
+        ["dragenter", "dragover"].forEach(evt =>
+            drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.add("drag"); })
+        );
+        ["dragleave", "drop"].forEach(evt =>
+            drop.addEventListener(evt, e => { e.preventDefault(); drop.classList.remove("drag"); })
+        );
+        drop.addEventListener("drop", e => {
+            const f = e.dataTransfer.files?.[0];
+            if (f) { readFile(f); fileInput.files = e.dataTransfer.files; }
+        });
+
+        /* file input */
+        fileInput.addEventListener("change", e => {
+            const f = e.target.files?.[0];
+            if (f) readFile(f);
+        });
+
+        /* sample (for development) */
+        sampleBtn.addEventListener("click", () => {
+            const sample = [
+                ['Ord No.', 'Exch', 'Segment', 'ClientId', 'EXCH_SEG', 'Buy/Sell', 'Instrument', 'Symbol', 'Symbol Name', 'Trading Symbol', 'Descriptive Symbol', 'Series', 'Expiry', 'Strike Price', 'Option Type', 'Product', 'Qty', 'Price', 'Trade Value', 'Trade No', 'Exchange Ord No.', 'DateTime', 'Placed By', 'PAN No', 'Participant Type', 'Participant ID', 'Auction Number', 'Source', 'Algo Id', 'Remarks 1', 'Remarks 2'],
+                ['1', 'NSE', 'EQ', 'C123', 'NSE_EQ', 'Buy', 'OPTIDX', 'NIFTY', 'NIFTY', 'NIFTY24NOV22000CE', 'NIFTY 22000 CE', 'OPTIDX', '2024-11-28', '22000', 'CE', 'NRML', '75', '12.5', '937.5', 'T123', 'E123', '2024-11-02 10:15:00', 'Dealer', 'ABCDE1234F', 'CLIENT', 'P123', '', 'OMS', '', 'SETTLE-T1', '2.7'],
+                ['2', 'NSE', 'EQ', 'C123', 'NSE_EQ', 'Sell', 'EQ', 'TCS', 'TCS', 'TCS', 'TCS', 'EQ', '', '', 'XX', 'CNC', '10', '3500', '', '', '', '2024-11-02 14:20:05', '', '', '', '', '', '', 'SETTLE-T1', '1.9']
+            ];
+            displayParsed(sample);
+        });
+
+        /* convert & download */
+        convertBtn.addEventListener("click", () => {
+            const outputRows = convertAll(sourceHeaders, sourceRows);
+            const filename = `converted_${new Date().toISOString().slice(0, 10)}.csv`;
+            download(filename, rowsToCSV(outputRows));
+        });
+
+        /* ---------- Core pipeline ---------- */
+        function readFile(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const text = e.target.result;
+                const delimiter = detectDelimiter(text);
+                const rows = parseCSV(text, delimiter);
+                displayParsed(rows);
+            };
+            reader.onerror = () => statusEl.textContent = "Failed to read file.";
+            reader.readAsText(file);
+        }
+
+        function displayParsed(rows) {
+            if (!rows || !rows.length) {
+                statusEl.textContent = "No rows found.";
+                convertBtn.disabled = true;
+                preview.hidden = true;
+                return;
+            }
+            sourceHeaders = rows[0];
+            sourceRows = rows.slice(1);
+
+            statusEl.innerHTML = `Loaded <strong>${sourceRows.length}</strong> rows · Detected <code>${sourceHeaders.length}</code> columns`;
+
+            thead.innerHTML = `<tr>${sourceHeaders.map(h => `<th>${h}</th>`).join("")}</tr>`;
+            const first = sourceRows.slice(0, 10);
+            tbody.innerHTML = first.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("");
+            preview.hidden = false;
+            convertBtn.disabled = false;
+        }
+
+        /* ---------- Transformation layer (YOUR RULES) ---------- */
+        const TARGET_HEADERS = [
+            'BROKER CODE', 'CLIENT CODE', 'NSE SYMBOL CODE', 'EXCHANGE', 'BUY/SELL (BY-/SL+)',
+            'TRADE DATE', 'Settlement date', 'Quantity', 'TRADE PRICE', 'Turnover',
+            'TOTAL BROKERAGE', 'GST', 'DEFAULT',
+            'STAMP DUTY', 'Turnover Charges', 'SECURITY TRANSACTION TAX AMOUNT',
+            'SEBI & CLERING CHARGES', 'DEFAULT',
+            'SECURITY EXPIRY DATE', 'STRIKE PRICE', 'CE/PE/XX', 'SERIES'
+        ];
+
+        function indexMap(headers) {
+            const map = {};
+            headers.forEach((h, i) => map[h.trim()] = i);
+            return map;
+        }
+        function get(row, idxMap, header, fallback = "") {
+            const i = idxMap[header];
+            return (i == null) ? fallback : (row[i] ?? fallback);
+        }
+        const toNum = v => {
+            if (v == null) return 0;
+            const n = parseFloat(String(v).toString().replace(/,/g, "").trim());
+            return Number.isFinite(n) ? n : 0;
+        };
+        const round2 = n => (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
+
+        function transformRow(srcRow, idx) {
+            const m = indexMap(sourceHeaders);
+
+            // CONSTANTS / INPUTS
+            const BROKER_CODE = '8814';                                       // constant
+            const clientCode = get(srcRow, m, 'ClientId');
+            const nseSymbol = get(srcRow, m, 'Symbol');
+            const exchange = get(srcRow, m, 'Exch');
+            const sideRaw = (get(srcRow, m, 'Buy/Sell') || '').trim().toLowerCase();
+            const sideOut = sideRaw === 'buy' ? 'BY-' : sideRaw === 'sell' ? 'SL+' : '';
+
+            // Dates
+            const dt = (get(srcRow, m, 'DateTime') || '').split(' ')[0];      // only date (YYYY-MM-DD)
+            const settlement = get(srcRow, m, 'Remarks 1');
+
+            // Qty / Price
+            const qty = toNum(get(srcRow, m, 'Qty'));
+            const price = toNum(get(srcRow, m, 'Price'));
+
+            // Turnover
+            const turnover = qty * price;
+
+            // Brokerage
+            const remarks2 = toNum(get(srcRow, m, 'Remarks 2'));
+            const totalBrokerage = remarks2 * 10;
+
+            // DEFAULT (first one) = first two letters of Instrument
+            const instrument = (get(srcRow, m, 'Instrument') || '').trim();
+            const default1 = instrument.slice(0, 2).toUpperCase();
+
+            // Charges (percent-of-turnover rules)
+            const stampDuty = turnover * 0.00003;    // 0.003%
+            const turnoverChg = turnover * 0.0003503;// 0.03503%
+            const sebiClr = turnover * 0.00005;      // 0.005%
+
+            // STT: 0 unless SELL, then 0.1% of sell turnover
+            const stt = (sideRaw === 'sell') ? (turnover * 0.001) : 0;
+
+            // GST: (TOTAL BROKERAGE + Turnover Charges + SEBI & CLEARING) * 18%
+            const gst = (totalBrokerage + turnoverChg + sebiClr) * 0.18;
+
+            // Second DEFAULT = blank
+            const default2 = '';
+
+            // Derivatives metadata
+            const secExpiry = get(srcRow, m, 'Expiry');
+            const strike = get(srcRow, m, 'Strike Price');
+            const optType = get(srcRow, m, 'Option Type'); // CE/PE/XX
+            const series = instrument; // SERIES is Instrument (OPTSTK, OPTIDX, FUTSTK, FUTIDX/EQ)
+
+            // Return in target order (format numeric to 2 decimals where appropriate)
+            return [
+                BROKER_CODE,
+                clientCode,
+                nseSymbol,
+                exchange,
+                sideRaw,
+                // sideOut,
+                dt,
+                settlement,
+                String(qty),
+                round2(price),
+                round2(turnover),
+                round2(totalBrokerage),
+                round2(gst),
+                default1,
+                round2(stampDuty),
+                round2(turnoverChg),
+                round2(stt),
+                round2(sebiClr),
+                default2,
+                secExpiry,
+                strike,
+                optType,
+                series
+            ];
+        }
+
+        function convertAll(headers, rows) {
+            const out = [TARGET_HEADERS];
+            for (let i = 0; i < rows.length; i++) out.push(transformRow(rows[i], i));
+            return out;
+        }
+    </script>
+</body>
+
+</html>
